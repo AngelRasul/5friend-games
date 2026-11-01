@@ -1,0 +1,6 @@
+{
+  "name": "Угадай спину",
+  "description": "Компанейская игра «Шпион» на одном смартфоне в стиле Material You: тайные роли, 3 минуты обсуждения, голосование и таблица лидеров.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
