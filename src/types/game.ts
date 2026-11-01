@@ -4,6 +4,8 @@ export enum AppScreen {
   AVATAR_CAMERA = 'AVATAR_CAMERA',
   CATEGORY_SELECTION = 'CATEGORY_SELECTION',
   GAME = 'GAME',
+  ACT_TWO_AUTH = 'ACT_TWO_AUTH',
+  ACT_TWO = 'ACT_TWO',
 }
 
 export enum SpyGamePhase {
@@ -132,4 +134,81 @@ export interface SpySessionState {
   voterIndex: number;
   votes: Partial<Record<CharacterId, CharacterId>>;
   lastRoundOutcome: RoundOutcome | null;
+}
+
+// ============================================================================
+// СЕКРЕТНЫЙ РЕЖИМ ACT II — ДЕТЕКТИВНЫЕ СЦЕНАРИИ
+// ============================================================================
+
+export type ActTwoScenarioIconId =
+  | 'chalice'
+  | 'express'
+  | 'operating_room'
+  | 'theater_dagger'
+  | 'lighthouse'
+  | 'archive_fire'
+  | 'penthouse_mirror'
+  | 'night_flight'
+  | 'crimson_ruby'
+  | 'bunker_vault';
+
+export enum ActTwoPhase {
+  /** Галерея выбора из 10 сценариев и выбор 3–5 участников */
+  HUB = 'HUB',
+  /** Краткая сводка дела перед раздачей засекреченных досье */
+  CASE_BRIEFING = 'CASE_BRIEFING',
+  /** Безопасная передача смартфона следующему участнику */
+  ROLE_HANDOFF = 'ROLE_HANDOFF',
+  /** Тайное чтение своей роли, личной истории и индивидуального задания */
+  ROLE_VIEWING = 'ROLE_VIEWING',
+  /** Обсуждение расследования с доступом к уликам и таймером */
+  DISCUSSION = 'DISCUSSION',
+  /** Передача смартфона для тайного голосования по делу */
+  VOTING_HANDOFF = 'VOTING_HANDOFF',
+  /** Выбор главного обвиняемого */
+  VOTING_SELECT = 'VOTING_SELECT',
+  /** Финальное раскрытие преступника, ролей, историй и индивидуальных заданий */
+  FINALE = 'FINALE',
+}
+
+export interface ActTwoRoleTemplate {
+  id: string;
+  personaTitle: string;
+  isCulprit: boolean;
+  publicNote: string;
+  secretStory: string;
+  personalTask: string;
+}
+
+export interface ActTwoScenario {
+  id: string;
+  code: string;
+  title: string;
+  subtitle: string;
+  locationAndTime: string;
+  illustrationId: ActTwoScenarioIconId;
+  incidentSummary: string;
+  evidenceList: string[];
+  roles: ActTwoRoleTemplate[];
+  caughtEpilogue: string;
+  escapedEpilogue: string;
+  truthReconstruction: string;
+}
+
+export interface ActTwoAssignedPlayer {
+  characterId: CharacterId;
+  role: ActTwoRoleTemplate;
+}
+
+export interface ActTwoSessionState {
+  scenarioId: string;
+  participantIds: CharacterId[];
+  assignments: ActTwoAssignedPlayer[];
+  culpritCharacterId: CharacterId;
+  phase: ActTwoPhase;
+  handoffIndex: number;
+  voterIndex: number;
+  votes: Partial<Record<CharacterId, CharacterId>>;
+  caughtCulprit: boolean | null;
+  accusedCharacterId: CharacterId | null;
 }

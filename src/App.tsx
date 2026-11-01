@@ -4,6 +4,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActTwoAuth } from './components/ActTwoAuth';
+import { ActTwoScreen } from './components/ActTwoScreen';
 import { AvatarCamera } from './components/AvatarCamera';
 import { CategorySelection } from './components/CategorySelection';
 import { CharacterSelection } from './components/CharacterSelection';
@@ -415,7 +417,46 @@ export default function App() {
     }
   };
 
+  const handleOpenActTwoAuth = () => {
+    playUiTone('tap', soundEnabled);
+    setScreen(AppScreen.ACT_TWO_AUTH);
+  };
+
+  const handleAuthorizedActTwo = () => {
+    playUiTone('success', soundEnabled);
+    setScreen(AppScreen.ACT_TWO);
+  };
+
+  const handleExitActTwoToLobby = () => {
+    playUiTone('tap', soundEnabled);
+    setScreen(AppScreen.LOBBY);
+  };
+
   const topBarBack = getTopBarBackConfig();
+
+  if (screen === AppScreen.ACT_TWO_AUTH) {
+    return (
+      <ActTwoAuth
+        onAuthorized={handleAuthorizedActTwo}
+        onBack={handleExitActTwoToLobby}
+      />
+    );
+  }
+
+  if (screen === AppScreen.ACT_TWO) {
+    return (
+      <ActTwoScreen
+        selectedIds={selectedIds}
+        avatars={avatars}
+        soundEnabled={soundEnabled}
+        onToggleCharacter={handleToggleCharacter}
+        onSelectAllCharacters={handleSelectAllCharacters}
+        onClearCharacters={handleClearCharacters}
+        onToggleSound={handleToggleSound}
+        onExitActTwo={handleExitActTwoToLobby}
+      />
+    );
+  }
 
   return (
     <div className="min-h-dvh flex flex-col bg-[#FBF8FD] text-[#1C1B1F]">
@@ -433,6 +474,7 @@ export default function App() {
           onOpenFinalResult={handleOpenFinalResultFromLobby}
           onOpenRules={() => setIsRulesOpen(true)}
           onResetAllSettings={handleResetAllSettings}
+          onOpenActTwoAuth={handleOpenActTwoAuth}
         />
       )}
 

@@ -45,6 +45,48 @@
   }
 }
 
+@keyframes act2DripFall {
+  0% {
+    transform: translate3d(0, -18vh, 0) scaleY(0.85);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.65;
+  }
+  82% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate3d(0, 108vh, 0) scaleY(1.1);
+    opacity: 0;
+  }
+}
+
+@keyframes act2GlowPulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+.act2-drip-slow {
+  animation: act2DripFall 14s cubic-bezier(0.32, 0, 0.67, 1) infinite;
+  will-change: transform, opacity;
+}
+
+.act2-drip-slower {
+  animation: act2DripFall 19s cubic-bezier(0.32, 0, 0.67, 1) infinite;
+  will-change: transform, opacity;
+}
+
+.act2-pulse-line {
+  animation: act2GlowPulse 4.5s ease-in-out infinite;
+  will-change: opacity;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

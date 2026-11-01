@@ -1,5 +1,16 @@
 import { CHARACTERS } from '../data/characters';
 import { DEFAULT_CATEGORIES } from '../data/categories';
+import { ACT_TWO_SCENARIOS } from '../data/actTwoScenarios';
+import {
+  beginActTwoRoleHandoff,
+  hideActTwoRoleAndAdvance,
+  openActTwoBallot,
+  openActTwoRole,
+  startActTwoInvestigation,
+  startActTwoVoting,
+  submitActTwoVote,
+  verifyActTwoPassword,
+} from './actTwoLogic';
 import {
   DISCUSSION_DURATION_SECONDS,
   PLACE_TITLES,
@@ -15,7 +26,7 @@ import {
   startSpyRoundWithScoreboard,
   submitSecretVoteWithScoreboard,
 } from './gameLogic';
-import { CharacterId, GameCategory, SpyGamePhase } from '../types/game';
+import { ActTwoPhase, CharacterId, GameCategory, SpyGamePhase } from '../types/game';
 
 function expectOk(condition: boolean, message: string): void {
   if (!condition) {
@@ -345,6 +356,115 @@ function runTests() {
     );
     expectOk(seenRank1Titles.size > 1, 'rank 1 titles vary randomly across new sessions');
     expectOk(seenRank5Titles.size > 1, 'rank 5 titles vary randomly across new sessions');
+  }
+
+  // 11. Секретный режим ACT II: пароль, 10 сценариев, SVG-иллюстрации и весь игровой цикл
+  {
+    // Парольная система («ПОПА»)
+    expectEqual(verifyActTwoPassword('ПОПА'), true, 'exact uppercase password passes');
+    expectEqual(verifyActTwoPassword('попа'), true, 'lowercase password passes');
+    expectEqual(verifyActTwoPassword('  Попа '), true, 'mixed-case trimmed password passes');
+    expectEqual(verifyActTwoPassword(''), false, 'empty password rejected');
+    expectEqual(verifyActTwoPassword('ПОП'), false, 'short password rejected');
+    expectEqual(verifyActTwoPassword('ПАРОЛЬ'), false, 'wrong password rejected');
+    expectEqual(verifyActTwoPassword('ПОПА1'), false, 'extra char password rejected');
+
+    // Проверка всех 10 детективных сценариев и уникальных SVG-ключей
+    expectEqual(ACT_TWO_SCENARIOS.length, 10, 'exactly 10 ACT II scenarios');
+    const scenarioIds = new Set(ACT_TWO_SCENARIOS.map((s) => s.id));
+    const illustrationIds = new Set(ACT_TWO_SCENARIOS.map((s) => s.illustrationId));
+    expectEqual(scenarioIds.size, 10, '10 unique scenario IDs');
+    expectEqual(illustrationIds.size, 10, '10 unique SVG illustration IDs');
+
+    for (const sc of ACT_TWO_SCENARIOS) {
+      expectOk(sc.title.length > 0 && sc.incidentSummary.length > 0, 'scenario text present');
+      expectEqual(sc.evidenceList.length, 3, '3 evidence items per scenario');
+      expectEqual(sc.roles.length, 5, '5 role dossiers per scenario');
+      expectEqual(
+        sc.roles.filter((r) => r.isCulprit).length,
+        1,
+        'exactly 1 culprit template per scenario'
+      );
+      for (const r of sc.roles) {
+        expectOk(r.secretStory.length > 20, 'non-empty individual story');
+        expectOk(r.personalTask.length > 15, 'non-empty personal task');
+      }
+    }
+
+    // Полный цикл расследования ACT II (разоблачение преступника и уход от расплаты)
+    for (const count of [3, 4, 5]) {
+      const subset = CHARACTERS.slice(0, count).map((c) => c.id);
+      let act = startActTwoInvestigation(ACT_TWO_SCENARIOS[0].id, subset);
+      expectEqual(act.phase, ActTwoPhase.CASE_BRIEFING, 'starts in CASE_BRIEFING');
+      expectEqual(act.assignments.length, count, `${count} assignments created`);
+      expectEqual(
+        act.assignments.filter((a) => a.role.isCulprit).length,
+        1,
+        'always 1 culprit in match'
+      );
+
+      act = beginActTwoRoleHandoff(act);
+      for (let i = 0; i < count; i++) {
+        expectEqual(act.phase, ActTwoPhase.ROLE_HANDOFF, 'act2 handoff');
+        act = openActTwoRole(act);
+        expectEqual(act.phase, ActTwoPhase.ROLE_VIEWING, 'act2 role viewing');
+        act = hideActTwoRoleAndAdvance(act);
+      }
+      expectEqual(act.phase, ActTwoPhase.DISCUSSION, 'act2 transitions to DISCUSSION');
+
+      act = startActTwoVoting(act);
+      const culpritId = act.culpritCharacterId;
+      const innocentIds = act.participantIds.filter((id) => id !== culpritId);
+
+      // Защита от голосования за самого себя
+      act = openActTwoBallot(act);
+      const firstVoter = act.participantIds[0];
+      expectEqual(
+        submitActTwoVote(act, firstVoter).voterIndex,
+        0,
+        'act2 self-vote rejected'
+      );
+
+      // Все мирные голосуют против настоящего преступника -> преступник разоблачён
+      let cursor = act;
+      for (let i = 0; i < count; i++) {
+        if (cursor.phase === ActTwoPhase.VOTING_HANDOFF) {
+          cursor = openActTwoBallot(cursor);
+        }
+        const voter = cursor.participantIds[cursor.voterIndex];
+        const target = voter === culpritId ? innocentIds[0] : culpritId;
+        cursor = submitActTwoVote(cursor, target);
+      }
+
+      expectEqual(cursor.phase, ActTwoPhase.FINALE, 'act2 reaches FINALE');
+      expectEqual(cursor.caughtCulprit, true, 'culprit caught when outvoted');
+      expectEqual(cursor.accusedCharacterId, culpritId, 'accused matches culprit');
+    }
+
+    // Проверка побега преступника при ошибочном голосовании
+    {
+      const subset: CharacterId[] = ['rasul', 'salikh', 'mikail', 'denislam'];
+      let act = startActTwoInvestigation(ACT_TWO_SCENARIOS[4].id, subset);
+      act = beginActTwoRoleHandoff(act);
+      for (let i = 0; i < subset.length; i++) {
+        act = openActTwoRole(act);
+        act = hideActTwoRoleAndAdvance(act);
+      }
+      act = startActTwoVoting(act);
+      const culpritId = act.culpritCharacterId;
+      const innocentA = subset.find((id) => id !== culpritId)!;
+      const innocentB = subset.find((id) => id !== culpritId && id !== innocentA)!;
+
+      for (let i = 0; i < subset.length; i++) {
+        act = openActTwoBallot(act);
+        const voter = act.participantIds[act.voterIndex];
+        const wrongTarget = voter === innocentA ? innocentB : innocentA;
+        act = submitActTwoVote(act, wrongTarget);
+      }
+
+      expectEqual(act.phase, ActTwoPhase.FINALE, 'act2 finale on wrong accusation');
+      expectEqual(act.caughtCulprit, false, 'culprit escapes when innocent accused');
+    }
   }
 
   console.log('ALL GAME LOGIC & SECURITY TESTS PASSED SUCCESSFULLY!');

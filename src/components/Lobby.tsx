@@ -12,6 +12,7 @@ interface LobbyProps {
   onOpenFinalResult: () => void;
   onOpenRules: () => void;
   onResetAllSettings: () => Promise<void>;
+  onOpenActTwoAuth: () => void;
 }
 
 export function Lobby({
@@ -21,6 +22,7 @@ export function Lobby({
   onOpenFinalResult,
   onOpenRules,
   onResetAllSettings,
+  onOpenActTwoAuth,
 }: LobbyProps) {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -126,6 +128,18 @@ export function Lobby({
           </div>
         </div>
       </motion.section>
+
+      {/* Малозаметный органичный вход в засекреченный второй акт */}
+      <div className="mt-3 flex justify-center">
+        <button
+          type="button"
+          onClick={onOpenActTwoAuth}
+          aria-label="Секретный архив второго акта"
+          className="min-h-[44px] px-4 rounded-full font-mono text-[11px] tracking-widest text-[#79747E]/50 hover:text-[#49454F] active:scale-95 transition-all select-none whitespace-nowrap"
+        >
+          АРХИВ · II
+        </button>
+      </div>
 
       <AnimatePresence>
         {isResetModalOpen && (
