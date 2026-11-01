@@ -15,6 +15,7 @@ import {
   Play,
   ShieldAlert,
   ShieldCheck,
+  Square,
   Target,
   Users,
   Volume2,
@@ -35,7 +36,13 @@ import {
   submitActTwoVote,
 } from '../logic/actTwoLogic';
 import { isValidParticipantCount } from '../logic/gameLogic';
-import { ActTwoPhase, ActTwoSessionState, CharacterId } from '../types/game';
+import { ActTwoPhase, ActTwoScenario, ActTwoSessionState, CharacterId } from '../types/game';
+import {
+  isSpeechSynthesisSupported,
+  preloadRussianVoices,
+  speakActTwoScenario,
+  stopActTwoSpeech,
+} from '../utils/actTwoSpeech';
 import { playUiTone } from '../utils/sound';
 import { ActTwoAtmosphere } from './ActTwoAtmosphere';
 import { ActTwoScenarioIllustration } from './ActTwoScenarioIllustration';
@@ -79,6 +86,10 @@ export function ActTwoScreen({
   const [isHandoffUnlocked, setIsHandoffUnlocked] = useState(false);
   const [completedTasks, setCompletedTasks] = useState<Partial<Record<CharacterId, boolean>>>({});
 
+  const [isNarrating, setIsNarrating] = useState(false);
+  const [narratingLabel, setNarratingLabel] = useState<string | null>(null);
+  const speechAvailable = isSpeechSynthesisSupported();
+
   const deadlineMsRef = useRef<number>(Date.now() + ACT_TWO_DISCUSSION_SECONDS * 1000);
   const pausedRemainingRef = useRef<number>(ACT_TWO_DISCUSSION_SECONDS);
   const timerTriggeredRef = useRef<boolean>(false);
@@ -90,6 +101,28 @@ export function ActTwoScreen({
   const activeScenario = actSession
     ? getActTwoScenarioById(actSession.scenarioId)
     : undefined;
+
+  useEffect(() => {
+    preloadRussianVoices();
+    return () => {
+      stopActTwoSpeech();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!soundEnabled) {
+      stopActTwoSpeech();
+    }
+  }, [soundEnabled]);
+
+  const startVoiceForScenario = useCallback((scenario: ActTwoScenario) => {
+    speakActTwoScenario(scenario, {
+      onStateChange: (speaking, label) => {
+        setIsNarrating(speaking);
+        setNarratingLabel(label);
+      },
+    });
+  }, []);
 
   // Защита от случайного двойного касания при передаче телефона
   useEffect(() => {
@@ -123,6 +156,7 @@ export function ActTwoScreen({
 
   const handleTransitionToVoting = useCallback(
     (expiredByTimer?: boolean) => {
+      stopActTwoSpeech();
       setActSession((prev) => {
         if (!prev || prev.phase !== ActTwoPhase.DISCUSSION) return prev;
         playUiTone(expiredByTimer ? 'alarm' : 'tap', soundEnabled);
@@ -172,21 +206,45 @@ export function ActTwoScreen({
 
   const handleSelectScenario = (scenarioId: string) => {
     if (!isCountValid) return;
-    playUiTone('tap', soundEnabled);
+    const chosenScenario = getActTwoScenarioById(scenarioId);
     voteLockRef.current = '';
     setCompletedTasks({});
     setActSession(startActTwoInvestigation(scenarioId, selectedIds));
+
+    // Синхронный запуск голоса диктора по клику пользователя (важно для iOS Safari / Android Chrome)
+    if (soundEnabled && chosenScenario && speechAvailable) {
+      startVoiceForScenario(chosenScenario);
+    } else {
+      playUiTone('tap', soundEnabled);
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleToggleNarration = () => {
+    if (!activeScenario) return;
+    if (isNarrating) {
+      stopActTwoSpeech();
+    } else {
+      startVoiceForScenario(activeScenario);
+    }
+  };
+
   const handleReturnToHub = () => {
+    stopActTwoSpeech();
     playUiTone('tap', soundEnabled);
     voteLockRef.current = '';
     setActSession(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleExitWithCleanup = () => {
+    stopActTwoSpeech();
+    onExitActTwo();
+  };
+
   const handleBeginRoleHandoff = () => {
+    stopActTwoSpeech();
     playUiTone('tap', soundEnabled);
     setActSession((prev) => (prev ? beginActTwoRoleHandoff(prev) : null));
   };
@@ -236,7 +294,7 @@ export function ActTwoScreen({
         <div className="max-w-4xl mx-auto h-full px-4 flex items-center justify-between gap-4">
           <button
             type="button"
-            onClick={actSession ? handleReturnToHub : onExitActTwo}
+            onClick={actSession ? handleReturnToHub : handleExitWithCleanup}
             className="min-h-[44px] min-w-[44px] -ml-2 px-3 rounded-full flex items-center gap-2 text-zinc-200 hover:text-white hover:bg-white/6 active:scale-95 transition-all whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[#DC2626]"
           >
             <ArrowLeft className="w-5 h-5 text-[#DC2626]" />
@@ -437,6 +495,50 @@ export function ActTwoScreen({
                     className="w-full h-36"
                   />
                 </div>
+
+                {/* Панель голосовой озвучки описания дела и первичных улик */}
+                {speechAvailable && (
+                  <div
+                    className={`rounded-2xl px-4 py-3 border flex items-center justify-between gap-3 transition-colors ${
+                      isNarrating
+                        ? 'bg-[#21090C] border-[#DC2626]'
+                        : 'bg-[#0B0B0F] border-white/10'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-white truncate">
+                        {isNarrating ? 'Читает диктор следствия' : 'Аудиосводка дела'}
+                      </div>
+                      <div className="text-[11px] font-mono text-zinc-400 truncate mt-0.5">
+                        {isNarrating && narratingLabel
+                          ? narratingLabel
+                          : 'Описание и первичные улики'}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleToggleNarration}
+                      className={`min-h-[42px] px-4 rounded-full text-xs font-semibold flex items-center gap-2 shrink-0 transition-all whitespace-nowrap ${
+                        isNarrating
+                          ? 'bg-[#DC2626] hover:bg-[#EF4444] text-white'
+                          : 'bg-[#18181F] hover:bg-[#991B1B] text-zinc-100 border border-white/12'
+                      }`}
+                    >
+                      {isNarrating ? (
+                        <>
+                          <Square className="w-3.5 h-3.5 fill-current shrink-0" />
+                          <span>Стоп</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="w-4 h-4 text-[#EF4444] shrink-0" />
+                          <span>Озвучить</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
 
                 <div>
                   <div className="text-xs font-mono text-[#EF4444]">
@@ -694,6 +796,32 @@ export function ActTwoScreen({
 
                   {discussionTab === 'evidence' ? (
                     <div className="rounded-2xl bg-[#0B0B0F] border border-white/8 p-4 space-y-3">
+                      {speechAvailable && (
+                        <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-white/8">
+                          <span className="text-[11px] font-mono text-zinc-400 truncate">
+                            {isNarrating && narratingLabel
+                              ? `Читает: ${narratingLabel}`
+                              : 'Голосовая сводка улик'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleToggleNarration}
+                            className="min-h-[36px] px-3.5 rounded-full bg-[#18181F] hover:bg-[#991B1B] border border-white/10 text-xs font-semibold text-white flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+                          >
+                            {isNarrating ? (
+                              <>
+                                <Square className="w-3 h-3 fill-current text-[#EF4444]" />
+                                <span>Стоп</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 className="w-3.5 h-3.5 text-[#EF4444]" />
+                                <span>Зачитать вслух</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
                       <p className="text-xs text-zinc-300 leading-relaxed">
                         {activeScenario.incidentSummary}
                       </p>
@@ -1072,7 +1200,7 @@ export function ActTwoScreen({
 
                     <button
                       type="button"
-                      onClick={onExitActTwo}
+                      onClick={handleExitWithCleanup}
                       className="w-full min-h-[48px] px-5 rounded-full bg-[#18181F] hover:bg-[#22222B] border border-white/10 text-zinc-200 font-semibold text-sm flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
                     >
                       <span>Вернуться в обычную игру</span>

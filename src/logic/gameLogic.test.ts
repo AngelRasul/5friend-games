@@ -1,6 +1,7 @@
 import { CHARACTERS } from '../data/characters';
 import { DEFAULT_CATEGORIES } from '../data/categories';
 import { ACT_TWO_SCENARIOS } from '../data/actTwoScenarios';
+import { buildScenarioSpeechSegments } from '../utils/actTwoSpeech';
 import {
   beginActTwoRoleHandoff,
   hideActTwoRoleAndAdvance,
@@ -389,6 +390,18 @@ function runTests() {
         expectOk(r.secretStory.length > 20, 'non-empty individual story');
         expectOk(r.personalTask.length > 15, 'non-empty personal task');
       }
+
+      const speechSegments = buildScenarioSpeechSegments(sc);
+      expectOk(
+        speechSegments.length >= 6,
+        'speech segments cover header, summary sentences, and all 3 evidence clues'
+      );
+      expectOk(
+        speechSegments.some((seg) => seg.label === 'Улика 01') &&
+          speechSegments.some((seg) => seg.label === 'Улика 02') &&
+          speechSegments.some((seg) => seg.label === 'Улика 03'),
+        'all 3 primary evidence items included in voice script'
+      );
     }
 
     // Полный цикл расследования ACT II (разоблачение преступника и уход от расплаты)
