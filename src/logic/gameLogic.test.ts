@@ -334,6 +334,15 @@ function runTests() {
       seenRank5Titles.add(lb5[4].title);
     }
 
+    expectOk(
+      Object.values(PLACE_TITLES).every(
+        (list) =>
+          list.length === 5 &&
+          !list.includes('Второй после бога') &&
+          !list.some((t) => t.toLowerCase().startsWith('почти'))
+      ),
+      'all 5 place lists have 5 sharp titles and no Почти or Второй после бога'
+    );
     expectOk(seenRank1Titles.size > 1, 'rank 1 titles vary randomly across new sessions');
     expectOk(seenRank5Titles.size > 1, 'rank 5 titles vary randomly across new sessions');
   }
